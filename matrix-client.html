@@ -4,40 +4,39 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>Matrix Pop-up Chat</title>
-  <link rel="stylesheet" href="matrix-client.css">
 </head>
 <body>
   <div id="app">
     <!-- Login Screen -->
-    <section id="login-screen" class="screen active">
+    <section id="login-screen">
       <div class="login-container">
         <h2>Matrix Login</h2>
         <form id="login-form">
-          <label>Homeserver URL</label>
+          <label for="hs-url">Homeserver URL</label>
           <input type="text" id="hs-url" placeholder="https://matrix.org" required value="https://matrix-client.matrix.org">
           
-          <label>Username (or full @user:server)</label>
+          <label for="username">Username (or full @user:server)</label>
           <input type="text" id="username" placeholder="alice">
           
-          <label>Password</label>
+          <label for="password">Password</label>
           <input type="password" id="password">
           
-          <div class="divider">OR (Optional)</div>
+          <div>OR (Optional)</div>
           
-          <label>Access Token</label>
+          <label for="access-token">Access Token</label>
           <input type="password" id="access-token" placeholder="syt_...">
           
-          <button type="submit" class="btn primary">Connect</button>
+          <button type="submit">Connect</button>
         </form>
-        <button id="close-overlay-btn" class="btn secondary">Close Overlay</button>
+        <button id="close-overlay-btn" type="button">Close Overlay</button>
       </div>
     </section>
 
     <!-- Chat Screen -->
-    <section id="chat-screen" class="screen">
+    <section id="chat-screen">
       <header class="chat-header">
         <div id="current-room-name">Select a room</div>
-        <button id="logout-btn" class="btn danger">Logout</button>
+        <button id="logout-btn" type="button">Logout</button>
       </header>
       <div class="chat-body">
         <aside id="room-list">
@@ -47,12 +46,11 @@
           <div id="message-container"></div>
           <form id="send-form">
             <input type="text" id="message-input" placeholder="Type a message..." autocomplete="off" required>
-            <button type="submit" class="btn primary">Send</button>
+            <button type="submit">Send</button>
           </form>
         </main>
       </div>
     </section>
   </div>
-  <script src="matrix-client.js"></script>
 </body>
 </html>
