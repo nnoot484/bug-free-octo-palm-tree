@@ -12,25 +12,20 @@
   
   <style>
     :root {
-      /* Material You / FOSS Dynamic Palette (Indigo & Mint Tones) */
       --md-sys-color-primary: #4f378b;
       --md-sys-color-on-primary: #ffffff;
       --md-sys-color-primary-container: #eaddff;
       --md-sys-color-on-primary-container: #21005d;
-      
       --md-sys-color-surface: #fef7ff;
       --md-sys-color-on-surface: #1d1b20;
       --md-sys-color-surface-container: #f3edf7;
       --md-sys-color-surface-container-high: #ece6f0;
       --md-sys-color-surface-container-highest: #e6e0e9;
-      
       --md-sys-color-outline: #79747e;
       --md-sys-color-outline-variant: #cac4d0;
-      
       --md-sys-color-error: #b3261e;
       --md-sys-color-error-container: #f9dedc;
       --md-sys-color-on-error-container: #410e0b;
-
       --md-shape-corner-small: 8px;
       --md-shape-corner-medium: 16px;
       --md-shape-corner-large: 28px;
@@ -52,7 +47,6 @@
     section { display: none; height: 100%; width: 100%; }
     section.active { display: flex; }
 
-    /* --- LOGIN SCREEN --- */
     #login-screen { justify-content: center; align-items: center; background: var(--md-sys-color-surface-container); }
     .login-container {
       background: var(--md-sys-color-surface);
@@ -65,7 +59,6 @@
     .login-container h2 { margin-top: 0; font-weight: 500; font-size: 1.75rem; color: var(--md-sys-color-primary); }
     .login-container form { display: flex; flex-direction: column; gap: 16px; }
     
-    /* --- INPUT FIELDS & LABELS --- */
     label { font-size: 0.85rem; font-weight: 500; color: var(--md-sys-color-outline); }
     input[type="text"], input[type="password"] {
       padding: 12px 16px;
@@ -79,7 +72,6 @@
     }
     input:focus { border-color: var(--md-sys-color-primary); border-width: 2px; padding: 11px 15px; }
 
-    /* --- BUTTONS --- */
     button {
       background: var(--md-sys-color-primary);
       color: var(--md-sys-color-on-primary);
@@ -100,10 +92,8 @@
       color: var(--md-sys-color-on-primary-container);
     }
 
-    /* --- CHAT SCREEN --- */
     #chat-screen { flex-direction: row; height: 100vh; }
     
-    /* Room List Sidebar */
     #room-list {
       width: 320px;
       background: var(--md-sys-color-surface-container);
@@ -139,7 +129,6 @@
     }
     .room-item button:hover { background: var(--md-sys-color-error-container); color: var(--md-sys-color-error); }
 
-    /* Room View & Header */
     #room-view { flex: 1; display: flex; flex-direction: column; background: var(--md-sys-color-surface); }
     .chat-header {
       padding: 16px 24px;
@@ -152,7 +141,6 @@
     .chat-header-left { display: flex; align-items: center; gap: 12px; }
     #current-room-name { font-size: 1.1rem; font-weight: 500; }
 
-    /* Messages Timeline */
     #message-container {
       flex: 1;
       padding: 24px;
@@ -172,7 +160,6 @@
     }
     .msg-sender { font-size: 0.75rem; font-weight: 700; color: var(--md-sys-color-primary); margin-bottom: 4px; display: block; }
 
-    /* Send Form */
     #send-form {
       display: flex;
       padding: 16px 24px;
@@ -182,7 +169,6 @@
     }
     #send-form input { flex: 1; border-radius: var(--md-shape-corner-full); background: var(--md-sys-color-surface); }
 
-    /* Material Modals */
     .modal {
       display: none;
       position: fixed;
@@ -205,13 +191,11 @@
     }
     .modal-content h3 { margin: 0; font-size: 1.25rem; font-weight: 500; }
     .modal-actions { display: flex; justify-content: flex-end; gap: 8px; }
-    
     .loading { color: var(--md-sys-color-outline); text-align: center; font-size: 0.9rem; }
   </style>
   
-  <!-- Load Matrix JS SDK -->
-  <script src="https://browser.sentry-cdn.com/7.47.0/bundle.min.js" crossorigin="anonymous"></script>
-  <script src="https://matrix-org.github.io/matrix-js-sdk/matrix.js"></script>
+  <!-- Load Matrix JS SDK Correctly via unpkg or browser bundle -->
+  <script src="https://unpkg.com/matrix-js-sdk@latest/lib/browser-index.js"></script>
 </head>
 <body>
   <div id="app">
@@ -268,7 +252,6 @@
     </section>
   </div>
 
-  <!-- Modals for Room Actions -->
   <div id="room-modal" class="modal">
     <div class="modal-content">
       <h3 id="modal-title">Action</h3>
@@ -323,13 +306,19 @@
       const password = document.getElementById('password').value;
 
       try {
-        matrixClient = window.matrixcs.createClient({ baseUrl });
+        // Safe access helper checking both window.matrixcs and window.sdk
+        const sdk = window.matrixcs || window.sdk;
+        if (!sdk || typeof sdk.createClient !== 'function') {
+          throw new Error("Matrix SDK failed to load properly into the browser global context.");
+        }
+
+        matrixClient = sdk.createClient({ baseUrl });
         const loginData = await matrixClient.login("m.login.password", {
           user: username,
           password: password
         });
 
-        matrixClient = window.matrixcs.createClient({
+        matrixClient = sdk.createClient({
           baseUrl: baseUrl,
           accessToken: loginData.access_token,
           userId: loginData.user_id
