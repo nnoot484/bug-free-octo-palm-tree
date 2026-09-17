@@ -3,31 +3,212 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-  <title>Matrix Pop-up Chat with Room Management</title>
+  <title>Matrix Material You Client</title>
+  <!-- Material Symbols Font for FOSS/MD Icons -->
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+  
   <style>
-    body { font-family: sans-serif; margin: 0; background: #f4f4f9; }
+    :root {
+      /* Material You / FOSS Dynamic Palette (Indigo & Mint Tones) */
+      --md-sys-color-primary: #4f378b;
+      --md-sys-color-on-primary: #ffffff;
+      --md-sys-color-primary-container: #eaddff;
+      --md-sys-color-on-primary-container: #21005d;
+      
+      --md-sys-color-surface: #fef7ff;
+      --md-sys-color-on-surface: #1d1b20;
+      --md-sys-color-surface-container: #f3edf7;
+      --md-sys-color-surface-container-high: #ece6f0;
+      --md-sys-color-surface-container-highest: #e6e0e9;
+      
+      --md-sys-color-outline: #79747e;
+      --md-sys-color-outline-variant: #cac4d0;
+      
+      --md-sys-color-error: #b3261e;
+      --md-sys-color-error-container: #f9dedc;
+      --md-sys-color-on-error-container: #410e0b;
+
+      --md-shape-corner-small: 8px;
+      --md-shape-corner-medium: 16px;
+      --md-shape-corner-large: 28px;
+      --md-shape-corner-full: 9999px;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      font-family: 'Roboto', sans-serif;
+      margin: 0;
+      background: var(--md-sys-color-surface);
+      color: var(--md-sys-color-on-surface);
+      height: 100vh;
+      overflow: hidden;
+    }
+
     #app { display: flex; height: 100vh; flex-direction: column; }
-    section { display: none; height: 100%; }
+    section { display: none; height: 100%; width: 100%; }
     section.active { display: flex; }
-    #login-screen { justify-content: center; align-items: center; }
-    .login-container { background: white; padding: 2rem; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); width: 300px; }
-    .login-container form { display: flex; flex-direction: column; gap: 10px; }
+
+    /* --- LOGIN SCREEN --- */
+    #login-screen { justify-content: center; align-items: center; background: var(--md-sys-color-surface-container); }
+    .login-container {
+      background: var(--md-sys-color-surface);
+      padding: 2.5rem;
+      border-radius: var(--md-shape-corner-large);
+      box-shadow: 0 10px 30px rgba(0,0,0,0.05);
+      width: 380px;
+      border: 1px solid var(--md-sys-color-outline-variant);
+    }
+    .login-container h2 { margin-top: 0; font-weight: 500; font-size: 1.75rem; color: var(--md-sys-color-primary); }
+    .login-container form { display: flex; flex-direction: column; gap: 16px; }
+    
+    /* --- INPUT FIELDS & LABELS --- */
+    label { font-size: 0.85rem; font-weight: 500; color: var(--md-sys-color-outline); }
+    input[type="text"], input[type="password"] {
+      padding: 12px 16px;
+      border: 1px solid var(--md-sys-color-outline);
+      border-radius: var(--md-shape-corner-small);
+      background: transparent;
+      color: var(--md-sys-color-on-surface);
+      font-size: 1rem;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    input:focus { border-color: var(--md-sys-color-primary); border-width: 2px; padding: 11px 15px; }
+
+    /* --- BUTTONS --- */
+    button {
+      background: var(--md-sys-color-primary);
+      color: var(--md-sys-color-on-primary);
+      border: none;
+      border-radius: var(--md-shape-corner-full);
+      padding: 10px 20px;
+      font-weight: 500;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      transition: filter 0.2s, box-shadow 0.2s;
+    }
+    button:hover { filter: brightness(1.1); box-shadow: 0 2px 4px rgba(0,0,0,0.15); }
+    button.tonal {
+      background: var(--md-sys-color-primary-container);
+      color: var(--md-sys-color-on-primary-container);
+    }
+
+    /* --- CHAT SCREEN --- */
     #chat-screen { flex-direction: row; height: 100vh; }
-    #room-list { width: 300px; background: #2e3b4e; color: white; display: flex; flex-direction: column; border-right: 1px solid #ccc; }
-    .room-actions { padding: 10px; display: flex; gap: 5px; background: #1e2633; }
-    .room-actions button { flex: 1; padding: 5px; font-size: 12px; cursor: pointer; }
-    #rooms-container { flex: 1; overflow-y: auto; }
-    .room-item { padding: 10px 15px; cursor: pointer; border-bottom: 1px solid #3a4b63; display: flex; justify-content: space-between; align-items: center; }
-    .room-item:hover, .room-item.active { background: #4a5b76; }
-    .room-item button { background: transparent; border: none; color: #ff8080; cursor: pointer; }
-    #room-view { flex: 1; display: flex; flex-direction: column; background: white; }
-    .chat-header { padding: 15px; background: #007bff; color: white; display: flex; justify-content: space-between; align-items: center; }
-    #message-container { flex: 1; padding: 15px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; }
-    #send-form { display: flex; padding: 10px; background: #eee; gap: 10px; }
-    #send-form input { flex: 1; padding: 10px; border: 1px solid #ccc; border-radius: 4px; }
-    .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); justify-content: center; align-items: center; }
-    .modal-content { background: white; padding: 20px; border-radius: 5px; display: flex; flex-direction: column; gap: 10px; width: 300px; }
+    
+    /* Room List Sidebar */
+    #room-list {
+      width: 320px;
+      background: var(--md-sys-color-surface-container);
+      display: flex;
+      flex-direction: column;
+      border-right: 1px solid var(--md-sys-color-outline-variant);
+    }
+    .room-actions { padding: 16px; display: flex; gap: 8px; background: var(--md-sys-color-surface-container); }
+    .room-actions button { flex: 1; font-size: 0.85rem; padding: 10px; border-radius: var(--md-shape-corner-medium); }
+    
+    #rooms-container { flex: 1; overflow-y: auto; padding: 8px; display: flex; flex-direction: column; gap: 4px; }
+    .room-item {
+      padding: 12px 16px;
+      cursor: pointer;
+      border-radius: var(--md-shape-corner-medium);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      color: var(--md-sys-color-on-surface);
+      transition: background 0.2s;
+    }
+    .room-item span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; font-size: 0.95rem; }
+    .room-item:hover { background: var(--md-sys-color-surface-container-high); }
+    .room-item.active { background: var(--md-sys-color-primary-container); color: var(--md-sys-color-on-primary-container); font-weight: 500; }
+    
+    .room-item button {
+      background: transparent;
+      color: var(--md-sys-color-outline);
+      border-radius: 50%;
+      width: 32px;
+      height: 32px;
+      padding: 0;
+    }
+    .room-item button:hover { background: var(--md-sys-color-error-container); color: var(--md-sys-color-error); }
+
+    /* Room View & Header */
+    #room-view { flex: 1; display: flex; flex-direction: column; background: var(--md-sys-color-surface); }
+    .chat-header {
+      padding: 16px 24px;
+      background: var(--md-sys-color-surface-container);
+      border-bottom: 1px solid var(--md-sys-color-outline-variant);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .chat-header-left { display: flex; align-items: center; gap: 12px; }
+    #current-room-name { font-size: 1.1rem; font-weight: 500; }
+
+    /* Messages Timeline */
+    #message-container {
+      flex: 1;
+      padding: 24px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .msg-bubble {
+      max-width: 65%;
+      padding: 10px 16px;
+      border-radius: var(--md-shape-corner-medium);
+      background: var(--md-sys-color-surface-container-high);
+      font-size: 0.95rem;
+      line-height: 1.4;
+      word-break: break-word;
+    }
+    .msg-sender { font-size: 0.75rem; font-weight: 700; color: var(--md-sys-color-primary); margin-bottom: 4px; display: block; }
+
+    /* Send Form */
+    #send-form {
+      display: flex;
+      padding: 16px 24px;
+      background: var(--md-sys-color-surface-container);
+      gap: 12px;
+      border-top: 1px solid var(--md-sys-color-outline-variant);
+    }
+    #send-form input { flex: 1; border-radius: var(--md-shape-corner-full); background: var(--md-sys-color-surface); }
+
+    /* Material Modals */
+    .modal {
+      display: none;
+      position: fixed;
+      top: 0; left: 0; width: 100%; height: 100%;
+      background: rgba(29, 27, 32, 0.4);
+      backdrop-filter: blur(4px);
+      justify-content: center;
+      align-items: center;
+      z-index: 100;
+    }
+    .modal-content {
+      background: var(--md-sys-color-surface-container-high);
+      padding: 24px;
+      border-radius: var(--md-shape-corner-large);
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      width: 340px;
+      box-shadow: 0 12px 32px rgba(0,0,0,0.15);
+    }
+    .modal-content h3 { margin: 0; font-size: 1.25rem; font-weight: 500; }
+    .modal-actions { display: flex; justify-content: flex-end; gap: 8px; }
+    
+    .loading { color: var(--md-sys-color-outline); text-align: center; font-size: 0.9rem; }
   </style>
+  
   <!-- Load Matrix JS SDK -->
   <script src="https://browser.sentry-cdn.com/7.47.0/bundle.min.js" crossorigin="anonymous"></script>
   <script src="https://matrix-org.github.io/matrix-js-sdk/matrix.js"></script>
@@ -48,7 +229,7 @@
           <label for="password">Password</label>
           <input type="password" id="password" required>
           
-          <button type="submit">Connect</button>
+          <button type="submit" style="margin-top: 8px;">Connect</button>
         </form>
       </div>
     </section>
@@ -57,8 +238,12 @@
     <section id="chat-screen">
       <aside id="room-list">
         <div class="room-actions">
-          <button id="create-room-btn" type="button">+ Create</button>
-          <button id="join-room-btn" type="button">+ Join</button>
+          <button id="create-room-btn" type="button" class="tonal">
+            <span class="material-symbols-outlined" style="font-size: 18px;">add</span> Create
+          </button>
+          <button id="join-room-btn" type="button" class="tonal">
+            <span class="material-symbols-outlined" style="font-size: 18px;">group_add</span> Join
+          </button>
         </div>
         <div id="rooms-container">
           <div class="loading" style="padding: 15px;">Loading rooms...</div>
@@ -66,16 +251,18 @@
       </aside>
       <main id="room-view">
         <header class="chat-header">
-          <div>
+          <div class="chat-header-left">
             <span id="current-room-name">Select a room</span>
-            <button id="edit-room-btn" type="button" style="display:none; margin-left: 10px;">Edit Name</button>
+            <button id="edit-room-btn" type="button" class="tonal" style="display:none; padding: 6px 12px; font-size: 0.75rem;">Edit Name</button>
           </div>
-          <button id="logout-btn" type="button">Logout</button>
+          <button id="logout-btn" type="button" class="tonal" onclick="location.reload();">Logout</button>
         </header>
         <div id="message-container"></div>
         <form id="send-form" style="display:none;">
           <input type="text" id="message-input" placeholder="Type a message..." autocomplete="off" required>
-          <button type="submit">Send</button>
+          <button type="submit">
+            <span class="material-symbols-outlined" style="font-size: 18px;">send</span>
+          </button>
         </form>
       </main>
     </section>
@@ -86,9 +273,9 @@
     <div class="modal-content">
       <h3 id="modal-title">Action</h3>
       <input type="text" id="modal-input" placeholder="">
-      <div style="display: flex; justify-content: flex-end; gap: 5px;">
-        <button id="modal-cancel">Cancel</button>
-        <button id="modal-submit">Submit</button>
+      <div class="modal-actions">
+        <button id="modal-cancel" type="button" class="tonal" style="background: transparent;">Cancel</button>
+        <button id="modal-submit" type="button">Submit</button>
       </div>
     </div>
   </div>
@@ -107,7 +294,6 @@
     const messageInput = document.getElementById('message-input');
     const editRoomBtn = document.getElementById('edit-room-btn');
 
-    // Modal elements
     const roomModal = document.getElementById('room-modal');
     const modalTitle = document.getElementById('modal-title');
     const modalInput = document.getElementById('modal-input');
@@ -120,6 +306,7 @@
       modalInput.value = '';
       modalInput.placeholder = placeholder;
       roomModal.style.display = 'flex';
+      modalInput.focus();
       modalActionCallback = callback;
     }
 
@@ -129,7 +316,6 @@
       if (modalActionCallback) modalActionCallback(modalInput.value);
     };
 
-    // Handle Login
     loginForm.onsubmit = async (e) => {
       e.preventDefault();
       const baseUrl = document.getElementById('hs-url').value;
@@ -143,7 +329,6 @@
           password: password
         });
 
-        // Recreate client with full access token and user id
         matrixClient = window.matrixcs.createClient({
           baseUrl: baseUrl,
           accessToken: loginData.access_token,
@@ -180,6 +365,11 @@
       const rooms = matrixClient.getRooms();
       roomsContainer.innerHTML = '';
       
+      if(rooms.length === 0) {
+        roomsContainer.innerHTML = '<div class="loading" style="padding: 15px;">No rooms found</div>';
+        return;
+      }
+
       rooms.forEach(room => {
         const div = document.createElement('div');
         div.className = `room-item ${room.roomId === currentRoomId ? 'active' : ''}`;
@@ -189,9 +379,8 @@
         nameSpan.onclick = () => selectRoom(room.roomId);
         div.appendChild(nameSpan);
 
-        // Remove / Leave Button
         const leaveBtn = document.createElement('button');
-        leaveBtn.innerText = '✕';
+        leaveBtn.innerHTML = '<span class="material-symbols-outlined" style="font-size: 16px;">close</span>';
         leaveBtn.title = 'Leave Room';
         leaveBtn.onclick = async (e) => {
           e.stopPropagation();
@@ -212,7 +401,6 @@
           }
         };
         div.appendChild(leaveBtn);
-
         roomsContainer.appendChild(div);
       });
     }
@@ -221,14 +409,11 @@
       currentRoomId = roomId;
       const room = matrixClient.getRoom(roomId);
       currentRoomNameEl.innerText = room ? room.name : roomId;
-      editRoomBtn.style.display = 'inline-block';
+      editRoomBtn.style.display = 'inline-flex';
       sendForm.style.display = 'flex';
 
-      // Load existing timeline messages
       messageContainer.innerHTML = '';
       if (room) {
-        const timelineEvents = room.getLiveTimeline().getState().events;
-        // Or fetch from room timeline items
         room.timeline.forEach(event => appendMessage(event));
       }
       updateRoomList();
@@ -237,14 +422,25 @@
     function appendMessage(event) {
       if (event.getType() !== "m.room.message") return;
       const msgDiv = document.createElement('div');
+      msgDiv.className = 'msg-bubble';
+      
       const sender = event.getSender();
       const body = event.getContent().body;
-      msgDiv.innerText = `${sender}: ${body}`;
+      
+      const senderSpan = document.createElement('span');
+      senderSpan.className = 'msg-sender';
+      senderSpan.innerText = sender;
+      
+      const textSpan = document.createElement('span');
+      textSpan.innerText = body;
+
+      msgDiv.appendChild(senderSpan);
+      msgDiv.appendChild(textSpan);
+      
       messageContainer.appendChild(msgDiv);
       messageContainer.scrollTop = messageContainer.scrollHeight;
     }
 
-    // Send Message
     sendForm.onsubmit = async (e) => {
       e.preventDefault();
       if (!currentRoomId) return;
@@ -261,7 +457,6 @@
       }
     };
 
-    // 1. CREATE ROOM
     document.getElementById('create-room-btn').onclick = () => {
       showModal("Create Room", "Room Name", async (roomName) => {
         if (!roomName) return;
@@ -278,9 +473,8 @@
       });
     };
 
-    // 2. JOIN ROOM (Add existing room)
     document.getElementById('join-room-btn').onclick = () => {
-      showModal("Join Room", "Room ID or Alias (e.g. #room:matrix.org)", async (roomAliasOrId) => {
+      showModal("Join Room", "Room ID or Alias (#room:matrix.org)", async (roomAliasOrId) => {
         if (!roomAliasOrId) return;
         try {
           const res = await matrixClient.joinRoom(roomAliasOrId);
@@ -292,9 +486,7 @@
       });
     };
 
-    // 3. EDIT ROOM NAME
     editRoomBtn.onclick = () => {
-      const room = matrixClient.getRoom(currentRoomId);
       showModal("Edit Room Name", "New Room Name", async (newName) => {
         if (!newName) return;
         try {
