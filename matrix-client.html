@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Matrix Overlay Chat</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <!-- Login Screen -->
+  <div id="login-view" class="view active">
+    <div class="login-card">
+      <h2>Matrix Login</h2>
+      <form id="login-form">
+        <label>Homeserver URL</label>
+        <input type="text" id="hs-url" placeholder="https://matrix.org" required value="https://matrix.org">
+        
+        <label>Username / Matrix ID</label>
+        <input type="text" id="username" placeholder="@user:matrix.org" required>
+        
+        <label>Password</label>
+        <input type="password" id="password" placeholder="Password">
+        
+        <div class="divider">OR</div>
+        
+        <label>Access Token (Alternative)</label>
+        <input type="password" id="access-token" placeholder="syt_...">
+        
+        <button type="submit" class="btn primary">Connect</button>
+        <div id="login-error" class="error"></div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Chat App Screen -->
+  <div id="chat-view" class="view">
+    <header class="chat-header">
+      <button id="back-to-rooms" class="icon-btn hidden">← Rooms</button>
+      <h3 id="current-chat-title">Rooms</h3>
+      <button id="logout-btn" class="icon-btn danger">Logout</button>
+    </header>
+    
+    <div class="chat-body">
+      <!-- Room List Pane -->
+      <div id="room-list" class="pane active">
+        <div class="loading-state">Loading rooms...</div>
+      </div>
+      
+      <!-- Message Stream Pane -->
+      <div id="message-pane" class="pane">
+        <div id="message-list"></div>
+        <form id="message-form" class="message-input-bar">
+          <input type="text" id="message-input" placeholder="Type a message..." autocomplete="off" required>
+          <button type="submit" class="btn primary">Send</button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <button id="close-overlay-btn" title="Close Overlay">×</button>
+  <script src="app.js"></script>
+</body>
+</html>
