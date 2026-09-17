@@ -3,54 +3,311 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-  <title>Matrix Pop-up Chat</title>
+  <title>Matrix Pop-up Chat with Room Management</title>
+  <style>
+    body { font-family: sans-serif; margin: 0; background: #f4f4f9; }
+    #app { display: flex; height: 100vh; flex-direction: column; }
+    section { display: none; height: 100%; }
+    section.active { display: flex; }
+    #login-screen { justify-content: center; align-items: center; }
+    .login-container { background: white; padding: 2rem; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); width: 300px; }
+    .login-container form { display: flex; flex-direction: column; gap: 10px; }
+    #chat-screen { flex-direction: row; height: 100vh; }
+    #room-list { width: 300px; background: #2e3b4e; color: white; display: flex; flex-direction: column; border-right: 1px solid #ccc; }
+    .room-actions { padding: 10px; display: flex; gap: 5px; background: #1e2633; }
+    .room-actions button { flex: 1; padding: 5px; font-size: 12px; cursor: pointer; }
+    #rooms-container { flex: 1; overflow-y: auto; }
+    .room-item { padding: 10px 15px; cursor: pointer; border-bottom: 1px solid #3a4b63; display: flex; justify-content: space-between; align-items: center; }
+    .room-item:hover, .room-item.active { background: #4a5b76; }
+    .room-item button { background: transparent; border: none; color: #ff8080; cursor: pointer; }
+    #room-view { flex: 1; display: flex; flex-direction: column; background: white; }
+    .chat-header { padding: 15px; background: #007bff; color: white; display: flex; justify-content: space-between; align-items: center; }
+    #message-container { flex: 1; padding: 15px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; }
+    #send-form { display: flex; padding: 10px; background: #eee; gap: 10px; }
+    #send-form input { flex: 1; padding: 10px; border: 1px solid #ccc; border-radius: 4px; }
+    .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); justify-content: center; align-items: center; }
+    .modal-content { background: white; padding: 20px; border-radius: 5px; display: flex; flex-direction: column; gap: 10px; width: 300px; }
+  </style>
+  <!-- Load Matrix JS SDK -->
+  <script src="https://browser.sentry-cdn.com/7.47.0/bundle.min.js" crossorigin="anonymous"></script>
+  <script src="https://matrix-org.github.io/matrix-js-sdk/matrix.js"></script>
 </head>
 <body>
   <div id="app">
     <!-- Login Screen -->
-    <section id="login-screen">
+    <section id="login-screen" class="active">
       <div class="login-container">
         <h2>Matrix Login</h2>
         <form id="login-form">
           <label for="hs-url">Homeserver URL</label>
-          <input type="text" id="hs-url" placeholder="https://matrix.org" required value="https://matrix-client.matrix.org">
+          <input type="text" id="hs-url" required value="https://matrix-client.matrix.org">
           
-          <label for="username">Username (or full @user:server)</label>
-          <input type="text" id="username" placeholder="alice">
+          <label for="username">Username / User ID</label>
+          <input type="text" id="username" placeholder="@user:matrix.org" required>
           
           <label for="password">Password</label>
-          <input type="password" id="password">
-          
-          <div>OR (Optional)</div>
-          
-          <label for="access-token">Access Token</label>
-          <input type="password" id="access-token" placeholder="syt_...">
+          <input type="password" id="password" required>
           
           <button type="submit">Connect</button>
         </form>
-        <button id="close-overlay-btn" type="button">Close Overlay</button>
       </div>
     </section>
 
     <!-- Chat Screen -->
     <section id="chat-screen">
-      <header class="chat-header">
-        <div id="current-room-name">Select a room</div>
-        <button id="logout-btn" type="button">Logout</button>
-      </header>
-      <div class="chat-body">
-        <aside id="room-list">
-          <div class="loading">Loading rooms...</div>
-        </aside>
-        <main id="room-view">
-          <div id="message-container"></div>
-          <form id="send-form">
-            <input type="text" id="message-input" placeholder="Type a message..." autocomplete="off" required>
-            <button type="submit">Send</button>
-          </form>
-        </main>
-      </div>
+      <aside id="room-list">
+        <div class="room-actions">
+          <button id="create-room-btn" type="button">+ Create</button>
+          <button id="join-room-btn" type="button">+ Join</button>
+        </div>
+        <div id="rooms-container">
+          <div class="loading" style="padding: 15px;">Loading rooms...</div>
+        </div>
+      </aside>
+      <main id="room-view">
+        <header class="chat-header">
+          <div>
+            <span id="current-room-name">Select a room</span>
+            <button id="edit-room-btn" type="button" style="display:none; margin-left: 10px;">Edit Name</button>
+          </div>
+          <button id="logout-btn" type="button">Logout</button>
+        </header>
+        <div id="message-container"></div>
+        <form id="send-form" style="display:none;">
+          <input type="text" id="message-input" placeholder="Type a message..." autocomplete="off" required>
+          <button type="submit">Send</button>
+        </form>
+      </main>
     </section>
   </div>
+
+  <!-- Modals for Room Actions -->
+  <div id="room-modal" class="modal">
+    <div class="modal-content">
+      <h3 id="modal-title">Action</h3>
+      <input type="text" id="modal-input" placeholder="">
+      <div style="display: flex; justify-content: flex-end; gap: 5px;">
+        <button id="modal-cancel">Cancel</button>
+        <button id="modal-submit">Submit</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let matrixClient = null;
+    let currentRoomId = null;
+
+    const loginScreen = document.getElementById('login-screen');
+    const chatScreen = document.getElementById('chat-screen');
+    const loginForm = document.getElementById('login-form');
+    const roomsContainer = document.getElementById('rooms-container');
+    const messageContainer = document.getElementById('message-container');
+    const currentRoomNameEl = document.getElementById('current-room-name');
+    const sendForm = document.getElementById('send-form');
+    const messageInput = document.getElementById('message-input');
+    const editRoomBtn = document.getElementById('edit-room-btn');
+
+    // Modal elements
+    const roomModal = document.getElementById('room-modal');
+    const modalTitle = document.getElementById('modal-title');
+    const modalInput = document.getElementById('modal-input');
+    const modalSubmit = document.getElementById('modal-submit');
+    const modalCancel = document.getElementById('modal-cancel');
+    let modalActionCallback = null;
+
+    function showModal(title, placeholder, callback) {
+      modalTitle.innerText = title;
+      modalInput.value = '';
+      modalInput.placeholder = placeholder;
+      roomModal.style.display = 'flex';
+      modalActionCallback = callback;
+    }
+
+    modalCancel.onclick = () => roomModal.style.display = 'none';
+    modalSubmit.onclick = () => {
+      roomModal.style.display = 'none';
+      if (modalActionCallback) modalActionCallback(modalInput.value);
+    };
+
+    // Handle Login
+    loginForm.onsubmit = async (e) => {
+      e.preventDefault();
+      const baseUrl = document.getElementById('hs-url').value;
+      const username = document.getElementById('username').value;
+      const password = document.getElementById('password').value;
+
+      try {
+        matrixClient = window.matrixcs.createClient({ baseUrl });
+        const loginData = await matrixClient.login("m.login.password", {
+          user: username,
+          password: password
+        });
+
+        // Recreate client with full access token and user id
+        matrixClient = window.matrixcs.createClient({
+          baseUrl: baseUrl,
+          accessToken: loginData.access_token,
+          userId: loginData.user_id
+        });
+
+        loginScreen.classList.remove('active');
+        chatScreen.classList.add('active');
+
+        initMatrixClient();
+      } catch (err) {
+        alert("Login failed: " + (err.message || err));
+      }
+    };
+
+    function initMatrixClient() {
+      matrixClient.on("Room.timeline", (event, room, toStartOfTimeline) => {
+        if (toStartOfTimeline) return;
+        if (room.roomId === currentRoomId) {
+          appendMessage(event);
+        }
+      });
+
+      matrixClient.on("sync", (state) => {
+        if (state === "PREPARED" || state === "SYNCING") {
+          updateRoomList();
+        }
+      });
+
+      matrixClient.startClient({ initialSyncLimit: 10 });
+    }
+
+    function updateRoomList() {
+      const rooms = matrixClient.getRooms();
+      roomsContainer.innerHTML = '';
+      
+      rooms.forEach(room => {
+        const div = document.createElement('div');
+        div.className = `room-item ${room.roomId === currentRoomId ? 'active' : ''}`;
+        
+        const nameSpan = document.createElement('span');
+        nameSpan.innerText = room.name || 'Unnamed Room';
+        nameSpan.onclick = () => selectRoom(room.roomId);
+        div.appendChild(nameSpan);
+
+        // Remove / Leave Button
+        const leaveBtn = document.createElement('button');
+        leaveBtn.innerText = '✕';
+        leaveBtn.title = 'Leave Room';
+        leaveBtn.onclick = async (e) => {
+          e.stopPropagation();
+          if (confirm(`Are you sure you want to leave ${room.name}?`)) {
+            try {
+              await matrixClient.leave(room.roomId);
+              if (currentRoomId === room.roomId) {
+                currentRoomId = null;
+                messageContainer.innerHTML = '';
+                currentRoomNameEl.innerText = 'Select a room';
+                sendForm.style.display = 'none';
+                editRoomBtn.style.display = 'none';
+              }
+              updateRoomList();
+            } catch (err) {
+              alert("Failed to leave room: " + err.message);
+            }
+          }
+        };
+        div.appendChild(leaveBtn);
+
+        roomsContainer.appendChild(div);
+      });
+    }
+
+    function selectRoom(roomId) {
+      currentRoomId = roomId;
+      const room = matrixClient.getRoom(roomId);
+      currentRoomNameEl.innerText = room ? room.name : roomId;
+      editRoomBtn.style.display = 'inline-block';
+      sendForm.style.display = 'flex';
+
+      // Load existing timeline messages
+      messageContainer.innerHTML = '';
+      if (room) {
+        const timelineEvents = room.getLiveTimeline().getState().events;
+        // Or fetch from room timeline items
+        room.timeline.forEach(event => appendMessage(event));
+      }
+      updateRoomList();
+    }
+
+    function appendMessage(event) {
+      if (event.getType() !== "m.room.message") return;
+      const msgDiv = document.createElement('div');
+      const sender = event.getSender();
+      const body = event.getContent().body;
+      msgDiv.innerText = `${sender}: ${body}`;
+      messageContainer.appendChild(msgDiv);
+      messageContainer.scrollTop = messageContainer.scrollHeight;
+    }
+
+    // Send Message
+    sendForm.onsubmit = async (e) => {
+      e.preventDefault();
+      if (!currentRoomId) return;
+      const text = messageInput.value;
+      messageInput.value = '';
+
+      try {
+        await matrixClient.sendEvent(currentRoomId, "m.room.message", {
+          body: text,
+          msgtype: "m.room.message"
+        });
+      } catch (err) {
+        alert("Failed to send message: " + err.message);
+      }
+    };
+
+    // 1. CREATE ROOM
+    document.getElementById('create-room-btn').onclick = () => {
+      showModal("Create Room", "Room Name", async (roomName) => {
+        if (!roomName) return;
+        try {
+          const res = await matrixClient.createRoom({
+            name: roomName,
+            visibility: "private"
+          });
+          selectRoom(res.room_id);
+          updateRoomList();
+        } catch (err) {
+          alert("Creation failed: " + err.message);
+        }
+      });
+    };
+
+    // 2. JOIN ROOM (Add existing room)
+    document.getElementById('join-room-btn').onclick = () => {
+      showModal("Join Room", "Room ID or Alias (e.g. #room:matrix.org)", async (roomAliasOrId) => {
+        if (!roomAliasOrId) return;
+        try {
+          const res = await matrixClient.joinRoom(roomAliasOrId);
+          selectRoom(res.roomId);
+          updateRoomList();
+        } catch (err) {
+          alert("Join failed: " + err.message);
+        }
+      });
+    };
+
+    // 3. EDIT ROOM NAME
+    editRoomBtn.onclick = () => {
+      const room = matrixClient.getRoom(currentRoomId);
+      showModal("Edit Room Name", "New Room Name", async (newName) => {
+        if (!newName) return;
+        try {
+          await matrixClient.sendStateEvent(currentRoomId, "m.room.name", {
+            name: newName
+          }, "");
+          currentRoomNameEl.innerText = newName;
+          updateRoomList();
+        } catch (err) {
+          alert("Failed to update room name: " + err.message);
+        }
+      });
+    };
+  </script>
 </body>
 </html>
