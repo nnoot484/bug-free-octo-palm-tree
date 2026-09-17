@@ -1,59 +1,54 @@
-// In-Memory State Container (Zero Persistence)
-let session = {
+// In-memory state only (Zero persistence)
+let sessionState = {
     hsUrl: '',
     accessToken: '',
     userId: '',
-    activeRoomId: null,
-    nextBatch: null,
-    syncAbortController: null
+    nextBatch: null
   };
   
-  // UI Element Bindings
-  const loginView = document.getElementById('login-view');
-  const chatView = document.getElementById('chat-view');
-  const loginForm = document.getElementById('login-form');
-  const loginError = document.getElementById('login-error');
-  const roomListEl = document.getElementById('room-list');
-  const messageListEl = document.getElementById('message-list');
-  const messageForm = document.getElementById('message-form');
-  const messageInput = document.getElementById('message-input');
-  const currentChatTitle = document.getElementById('current-chat-title');
-  const backToRoomsBtn = document.getElementById('back-to-rooms');
-  const logoutBtn = document.getElementById('logout-btn');
-  const closeOverlayBtn = document.getElementById('close-overlay-btn');
+  let activeRoomId = null;
+  let syncInterval = null;
   
-  // Close Overlay completely deletes the iframe
-  closeOverlayBtn.addEventListener('click', () => {
-    cleanupSession();
-    const container = window.parent.document.getElementById('matrix-overlay-container');
-    if (container) container.remove();
-  });
+  const $ = id => document.getElementById(id);
   
-  // Login Handler
-  loginForm.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    loginError.textContent = '';
+  // Close overlay logic
+  function closeOverlay() {
+    stopSync();
+    // Clear RAM state explicitly
+    sessionState = { hsUrl: '', accessToken: '', userId: '', nextBatch: null };
+    activeRoomId = null;
     
-    let hs = document.getElementById('hs-url').value.trim().replace(/\/+$/, '');
-    let username = document.getElementById('username').value.trim();
-    let password = document.getElementById('password').value;
-    let tokenInput = document.getElementById('access-token').value.trim();
+    if (window.parent && window.parent !== window) {
+      const overlay = window.parent.document.getElementById('matrix-overlay-root');
+      if (overlay) overlay.remove();
+    }
+  }
   
-    session.hsUrl = hs;
+  $('close-overlay-btn').addEventListener('click', closeOverlay);
+  
+  // Login Submission
+  $('login-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const hsUrlInput = $('hs-url').value.trim().replace(/\/+$/, '');
+    const username = $('username').value.trim();
+    const password = $('password').value;
+    const directToken = $('access-token').value.trim();
+  
+    sessionState.hsUrl = hsUrlInput;
   
     try {
-      if (tokenInput) {
-        session.accessToken = tokenInput;
-        // Resolve user id from token profile check
-        const res = await fetch(`${hs}/_matrix/client/v3/account/whoami`, {
-          headers: { 'Authorization': `Bearer ${session.accessToken}` }
+      if (directToken) {
+        sessionState.accessToken = directToken;
+        // Resolve user id from token via /_matrix/client/v3/account/whoami
+        const res = await fetch(`${hsUrlInput}/_matrix/client/v3/account/whoami`, {
+          headers: { Authorization: `Bearer ${directToken}` }
         });
         if (!res.ok) throw new Error('Invalid Access Token');
         const data = await res.json();
-        session.userId = data.user_id;
+        sessionState.userId = data.user_id;
       } else {
-        // Password login flow
-        const res = await fetch(`${hs}/_matrix/client/v3/login`, {
+        // Standard password login
+        const res = await fetch(`${hsUrlInput}/_matrix/client/v3/login`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -62,222 +57,220 @@ let session = {
             password: password
           })
         });
+        if (!res.ok) throw new Error('Login failed. Check credentials.');
         const data = await res.json();
-        if (!res.ok) throw new Error(data.error || 'Login failed');
-        session.accessToken = data.access_token;
-        session.userId = data.user_id;
+        sessionState.accessToken = data.access_token;
+        sessionState.userId = data.user_id;
       }
   
-      // Switch views and initialize app loop
-      loginView.classList.remove('active');
-      chatView.classList.add('active');
-      loadRooms();
-      startSyncLoop();
+      // Switch Screens
+      $('login-screen').classList.remove('active');
+      $('chat-screen').classList.add('active');
+      
+      await initChat();
     } catch (err) {
-      loginError.textContent = err.message;
+      alert(err.message);
     }
   });
   
-  // Fetch and Render Rooms
-  async function loadRooms() {
+  // Logout Button
+  $('logout-btn').addEventListener('click', async () => {
     try {
-      const res = await fetch(`${session.hsUrl}/_matrix/client/v3/joined_rooms`, {
-        headers: { 'Authorization': `Bearer ${session.accessToken}` }
+      await fetch(`${sessionState.hsUrl}/_matrix/client/v3/logout`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${sessionState.accessToken}` }
+      });
+    } catch (e) {
+      console.warn('Server-side logout failed:', e);
+    }
+    stopSync();
+    $('chat-screen').classList.remove('active');
+    $('login-screen').classList.add('active');
+    // Wipe inputs
+    $('password').value = '';
+    $('access-token').value = '';
+  });
+  
+  // Load Rooms & Start Sync Loop
+  async function initChat() {
+    await loadRooms();
+    startSyncLoop();
+  }
+  
+  async function loadRooms() {
+    const roomListEl = $('room-list');
+    roomListEl.innerHTML = '<div class="loading">Loading rooms...</div>';
+  
+    try {
+      const res = await fetch(`${sessionState.hsUrl}/_matrix/client/v3/joined_rooms`, {
+        headers: { Authorization: `Bearer ${sessionState.accessToken}` }
       });
       const data = await res.json();
-      if (!res.ok) throw new Error('Failed to load rooms');
-  
+      
       roomListEl.innerHTML = '';
-      for (const roomId of data.joined_rooms) {
-        // Fetch basic room name state
-        const nameRes = await fetch(`${session.hsUrl}/_matrix/client/v3/rooms/${roomId}/state/m.room.name/`, {
-          headers: { 'Authorization': `Bearer ${session.accessToken}` }
-        });
-        let roomName = roomId;
-        if (nameRes.ok) {
-          const nameData = await nameRes.json();
-          if (nameData.name) roomName = nameData.name;
-        }
+      if (!data.joined_rooms || data.joined_rooms.length === 0) {
+        roomListEl.innerHTML = '<div class="loading">No joined rooms found.</div>';
+        return;
+      }
   
-        const div = document.createElement('div');
-        div.className = 'room-item';
-        div.innerHTML = `<span class="room-name">${escapeHtml(roomName)}</span>`;
-        div.onclick = () => openRoom(roomId, roomName);
-        roomListEl.appendChild(div);
+      for (const roomId of data.joined_rooms) {
+        // Fetch room name from state
+        let roomName = roomId;
+        try {
+          const nameRes = await fetch(`${sessionState.hsUrl}/_matrix/client/v3/rooms/${roomId}/state/m.room.name/`, {
+            headers: { Authorization: `Bearer ${sessionState.accessToken}` }
+          });
+          if (nameRes.ok) {
+            const nameData = await nameRes.json();
+            if (nameData.name) roomName = nameData.name;
+          }
+        } catch (e) {}
+  
+        const item = document.createElement('div');
+        item.className = 'room-item';
+        item.textContent = roomName;
+        item.dataset.roomId = roomId;
+        item.addEventListener('click', () => selectRoom(roomId, roomName));
+        roomListEl.appendChild(item);
       }
     } catch (err) {
-      roomListEl.innerHTML = `<div class="error" style="padding:15px;">Error loading rooms: ${err.message}</div>`;
+      roomListEl.innerHTML = '<div class="loading">Failed to load rooms.</div>';
     }
   }
   
-  // Open Specific Room View
-  async function openRoom(roomId, roomName) {
-    session.activeRoomId = roomId;
-    currentChatTitle.textContent = roomName;
-    roomListEl.classList.remove('active');
-    document.getElementById('message-pane').classList.add('active');
-    backToRoomsBtn.classList.remove('hidden');
+  async function selectRoom(roomId, roomName) {
+    activeRoomId = roomId;
+    document.querySelectorAll('.room-item').forEach(el => {
+      el.classList.toggle('active', el.dataset.roomId === roomId);
+    });
+    $('current-room-name').textContent = roomName;
+    await loadRoomMessages(roomId);
+  }
   
-    messageListEl.innerHTML = '<div class="loading-state">Loading messages...</div>';
+  async function loadRoomMessages(roomId) {
+    const container = $('message-container');
+    container.innerHTML = '<div class="loading">Loading messages...</div>';
   
     try {
-      const res = await fetch(`${session.hsUrl}/_matrix/client/v3/rooms/${roomId}/messages?dir=b&limit=30`, {
-        headers: { 'Authorization': `Bearer ${session.accessToken}` }
+      const res = await fetch(`${sessionState.hsUrl}/_matrix/client/v3/rooms/${roomId}/messages?dir=b&limit=30`, {
+        headers: { Authorization: `Bearer ${sessionState.accessToken}` }
       });
       const data = await res.json();
-      if (!res.ok) throw new Error('Failed to fetch messages');
-  
-      messageListEl.innerHTML = '';
-      // Matrix messages arrive newest-first with dir=b, reverse to chronological
-      const msgs = data.chunk.reverse();
-      for (const msg of msgs) {
-        appendMessageToDOM(msg);
+      container.innerHTML = '';
+      
+      // Reverse chunk to show chronological layout
+      const chunks = (data.chunk || []).reverse();
+      for (const event of chunks) {
+        appendMessageEvent(event);
       }
       scrollToBottom();
     } catch (err) {
-      messageListEl.innerHTML = `<div class="error">Failed to load history</div>`;
+      container.innerHTML = '<div class="loading">Failed to load messages.</div>';
     }
   }
   
-  // Back button handler
-  backToRoomsBtn.addEventListener('click', () => {
-    session.activeRoomId = null;
-    currentChatTitle.textContent = "Rooms";
-    document.getElementById('message-pane').classList.remove('active');
-    roomListEl.classList.add('active');
-    backToRoomsBtn.classList.add('hidden');
-  });
+  function appendMessageEvent(event) {
+    if (event.type !== 'm.room.message' || !event.content || !event.content.body) return;
+    const container = $('message-container');
+    
+    const div = document.createElement('div');
+    const isOutgoing = event.sender === sessionState.userId;
+    div.className = `message ${isOutgoing ? 'outgoing' : 'incoming'}`;
   
-  // Send Message
-  messageForm.addEventListener('submit', async (e) => {
+    const senderSpan = document.createElement('span');
+    senderSpan.className = 'sender';
+    senderSpan.textContent = event.sender;
+    div.appendChild(senderSpan);
+  
+    const textNode = document.createTextNode(event.content.body);
+    div.appendChild(textNode);
+  
+    container.appendChild(div);
+  }
+  
+  function scrollToBottom() {
+    const container = $('message-container');
+    container.scrollTop = container.scrollHeight;
+  }
+  
+  // Send Message Handler
+  $('send-form').addEventListener('submit', async (e) => {
     e.preventDefault();
-    const text = messageInput.value.trim();
-    if (!text || !session.activeRoomId) return;
+    if (!activeRoomId) return;
+    const input = $('message-input');
+    const text = input.value.trim();
+    if (!text) return;
   
-    messageInput.value = '';
+    input.value = '';
     const txnId = 'm' + Date.now();
   
     try {
-      const res = await fetch(`${session.hsUrl}/_matrix/client/v3/rooms/${session.activeRoomId}/send/m.room.message/${txnId}`, {
+      const res = await fetch(`${sessionState.hsUrl}/_matrix/client/v3/rooms/${activeRoomId}/send/m.room.message/${txnId}`, {
         method: 'PUT',
         headers: {
-          'Authorization': `Bearer ${session.accessToken}`,
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${sessionState.accessToken}`
         },
         body: JSON.stringify({
           msgtype: 'm.text',
           body: text
         })
       });
-      if (!res.ok) throw new Error('Send failed');
+      if (!res.ok) throw new Error('Failed to send');
     } catch (err) {
-      alert('Failed to send message');
+      alert('Could not send message.');
     }
   });
   
   // Long-polling Sync Loop
-  async function startSyncLoop() {
-    session.syncAbortController = new AbortController();
-  
-    try {
-      while (true) {
-        let url = `${session.hsUrl}/_matrix/client/v3/sync?timeout=30000`;
-        if (session.nextBatch) url += `&since=${session.nextBatch}`;
-  
-        const res = await fetch(url, {
-          headers: { 'Authorization': `Bearer ${session.accessToken}` },
-          signal: session.syncAbortController.signal
-        });
-  
-        if (!res.ok) {
-          if (res.status === 401) { logout(); break; }
-          await new Promise(r => setTimeout(r, 5000)); // Backoff on error
-          continue;
+  function startSyncLoop() {
+    if (syncInterval) return;
+    
+    const poll = async () => {
+      if (!sessionState.accessToken) return;
+      try {
+        let url = `${sessionState.hsUrl}/_matrix/client/v3/sync?timeout=30000`;
+        if (sessionState.nextBatch) {
+          url += `&since=${sessionState.nextBatch}`;
         }
   
-        const data = await res.json();
-        session.nextBatch = data.next_batch;
+        const res = await fetch(url, {
+          headers: { Authorization: `Bearer ${sessionState.accessToken}` }
+        });
+        
+        if (res.ok) {
+          const data = await res.json();
+          sessionState.nextBatch = data.next_batch;
   
-        // Handle live messages in active room
-        if (data.rooms && data.rooms.join && session.activeRoomId) {
-          const roomData = data.rooms.join[session.activeRoomId];
-          if (roomData && roomData.timeline && roomData.timeline.events) {
-            for (const ev of roomData.timeline.events) {
-              if (ev.type === 'm.room.message') {
-                appendMessageToDOM(ev);
-                scrollToBottom();
+          // Check if new events arrived for the active room
+          if (activeRoomId && data.rooms && data.rooms.join && data.rooms.join[activeRoomId]) {
+            const roomTimeline = data.rooms.join[activeRoomId].timeline;
+            if (roomTimeline && roomTimeline.events) {
+              for (const event of roomTimeline.events) {
+                if (event.type === 'm.room.message') {
+                  appendMessageEvent(event);
+                  scrollToBottom();
+                }
               }
             }
           }
         }
+      } catch (e) {
+        // Network drop or timeout, cool down before retrying
+        await new Promise(r => setTimeout(r, 5000));
       }
-    } catch (err) {
-      if (err.name !== 'AbortError') {
-        console.error('Sync loop error:', err);
+  
+      if (sessionState.accessToken) {
+        syncInterval = setTimeout(poll, 1000);
       }
-    }
-  }
-  
-  // Helper to append message structure to UI
-  function appendMessageToDOM(event) {
-    if (!event.content || event.content.msgtype !== 'm.text') return;
-    const isOutgoing = event.sender === session.userId;
-    const div = document.createElement('div');
-    div.className = `message ${isOutgoing ? 'outgoing' : 'incoming'}`;
-    
-    if (!isOutgoing) {
-      const senderEl = document.createElement('div');
-      senderEl.className = 'message-sender';
-      senderEl.textContent = event.sender;
-      div.appendChild(senderEl);
-    }
-    
-    const textEl = document.createElement('div');
-    textEl.textContent = event.content.body;
-    div.appendChild(textEl);
-    
-    messageListEl.appendChild(div);
-  }
-  
-  function scrollToBottom() {
-    messageListEl.scrollTop = messageListEl.scrollHeight;
-  }
-  
-  // Logout & Server Invalidation
-  logoutBtn.addEventListener('click', logout);
-  
-  async function logout() {
-    try {
-      if (session.accessToken) {
-        await fetch(`${session.hsUrl}/_matrix/client/v3/logout`, {
-          method: 'POST',
-          headers: { 'Authorization': `Bearer ${session.accessToken}` }
-        });
-      }
-    } catch (e) {
-      // Ignore network dropouts during logout request
-    }
-    cleanupSession();
-    chatView.classList.remove('active');
-    loginView.classList.add('active');
-  }
-  
-  function cleanupSession() {
-    if (session.syncAbortController) {
-      session.syncAbortController.abort();
-    }
-    session = {
-      hsUrl: '',
-      accessToken: '',
-      userId: '',
-      activeRoomId: null,
-      nextBatch: null,
-      syncAbortController: null
     };
+  
+    poll();
   }
   
-  function escapeHtml(str) {
-    return str.replace(/[&<>'"]/g, 
-      tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;'}[tag] || tag)
-    );
+  function stopSync() {
+    if (syncInterval) {
+      clearTimeout(syncInterval);
+      syncInterval = null;
+    }
   }

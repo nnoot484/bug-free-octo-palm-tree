@@ -3,61 +3,56 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-  <title>Matrix Overlay Chat</title>
-  <link rel="stylesheet" href="style.css">
+  <title>Matrix Pop-up Chat</title>
+  <link rel="stylesheet" href="matrix-client.css">
 </head>
 <body>
-  <!-- Login Screen -->
-  <div id="login-view" class="view active">
-    <div class="login-card">
-      <h2>Matrix Login</h2>
-      <form id="login-form">
-        <label>Homeserver URL</label>
-        <input type="text" id="hs-url" placeholder="https://matrix.org" required value="https://matrix.org">
-        
-        <label>Username / Matrix ID</label>
-        <input type="text" id="username" placeholder="@user:matrix.org" required>
-        
-        <label>Password</label>
-        <input type="password" id="password" placeholder="Password">
-        
-        <div class="divider">OR</div>
-        
-        <label>Access Token (Alternative)</label>
-        <input type="password" id="access-token" placeholder="syt_...">
-        
-        <button type="submit" class="btn primary">Connect</button>
-        <div id="login-error" class="error"></div>
-      </form>
-    </div>
-  </div>
-
-  <!-- Chat App Screen -->
-  <div id="chat-view" class="view">
-    <header class="chat-header">
-      <button id="back-to-rooms" class="icon-btn hidden">← Rooms</button>
-      <h3 id="current-chat-title">Rooms</h3>
-      <button id="logout-btn" class="icon-btn danger">Logout</button>
-    </header>
-    
-    <div class="chat-body">
-      <!-- Room List Pane -->
-      <div id="room-list" class="pane active">
-        <div class="loading-state">Loading rooms...</div>
-      </div>
-      
-      <!-- Message Stream Pane -->
-      <div id="message-pane" class="pane">
-        <div id="message-list"></div>
-        <form id="message-form" class="message-input-bar">
-          <input type="text" id="message-input" placeholder="Type a message..." autocomplete="off" required>
-          <button type="submit" class="btn primary">Send</button>
+  <div id="app">
+    <!-- Login Screen -->
+    <section id="login-screen" class="screen active">
+      <div class="login-container">
+        <h2>Matrix Login</h2>
+        <form id="login-form">
+          <label>Homeserver URL</label>
+          <input type="text" id="hs-url" placeholder="https://matrix.org" required value="https://matrix-client.matrix.org">
+          
+          <label>Username (or full @user:server)</label>
+          <input type="text" id="username" placeholder="alice">
+          
+          <label>Password</label>
+          <input type="password" id="password">
+          
+          <div class="divider">OR (Optional)</div>
+          
+          <label>Access Token</label>
+          <input type="password" id="access-token" placeholder="syt_...">
+          
+          <button type="submit" class="btn primary">Connect</button>
         </form>
+        <button id="close-overlay-btn" class="btn secondary">Close Overlay</button>
       </div>
-    </div>
-  </div>
+    </section>
 
-  <button id="close-overlay-btn" title="Close Overlay">×</button>
-  <script src="app.js"></script>
+    <!-- Chat Screen -->
+    <section id="chat-screen" class="screen">
+      <header class="chat-header">
+        <div id="current-room-name">Select a room</div>
+        <button id="logout-btn" class="btn danger">Logout</button>
+      </header>
+      <div class="chat-body">
+        <aside id="room-list">
+          <div class="loading">Loading rooms...</div>
+        </aside>
+        <main id="room-view">
+          <div id="message-container"></div>
+          <form id="send-form">
+            <input type="text" id="message-input" placeholder="Type a message..." autocomplete="off" required>
+            <button type="submit" class="btn primary">Send</button>
+          </form>
+        </main>
+      </div>
+    </section>
+  </div>
+  <script src="matrix-client.js"></script>
 </body>
 </html>

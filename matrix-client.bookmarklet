@@ -1,0 +1,13 @@
+javascript:(function(){
+  var id = 'matrix-overlay-root';
+  var existing = document.getElementById(id);
+  if (existing) {
+    existing.remove();
+    return;
+  }
+  var iframe = document.createElement('iframe');
+  iframe.id = id;
+  iframe.src = 'https://nnoot484.github.io/bug-free-octo-palm-tree/matrix-client.html?t=' + Date.now();
+  iframe.style.cssText = 'position:fixed;top:0;left:0;width:100vw;height:100vh;z-index:2147483647;border:none;background:rgba(0,0,0,0.5);';
+  document.body.appendChild(iframe);
+})();
